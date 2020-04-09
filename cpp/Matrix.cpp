@@ -1,260 +1,272 @@
-//
-
-#include <iostream>
-#include <cmath>
-#include <fstream>
-#include <sstream>
 #include "Matrix.h"
 
+Matrix::Matrix (std::unique_ptr<std::unique_ptr<double[]>[]>& data, size_t m, size_t n)
+{
+    size[0] = m;
+    size[1] = n;
+    for (size_t i = 0; i < m; i++)                //copying values of data in matrix.data
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < n; j++)
+            temp.push_back(data[i][j]);
+        this->data.push_back(temp);
+    }  
+}
 
-Matrix::Matrix(const Matrix &mat) {
+Matrix::Matrix(const Matrix& mat)                  //copy constructor
+{
+    data = mat.data;
     size = mat.size;
-    for (int i = 0; i < mat.size[0]; ++i) {
-        data.push_back(mat.data[i]);
-    }
 }
 
-
-Matrix::Matrix() {}
-
-Matrix::Matrix(std::vector<std::vector<double>> data) {
-    this->data = data;
-    size[0] = data.size();
-    size[1] = data[0].size();
+Matrix::Matrix(std::vector<std::vector<double>> Data ) 
+{
+    size[0] = Data.size();
+    size[1] = Data[0].size();
+    data = Data;
 }
 
-Matrix::Matrix(std::unique_ptr<std::unique_ptr<double[]>[]> data, size_t m, size_t n) {
+Matrix::Matrix (size_t m, size_t n, bool ones)
+{
+    int a = 0;
+    if( ones )
+        a = 1;
+    for(size_t i{}; i < m; i++)
+    {
+        std::vector<double> column;
+        for (size_t j{}; j < n; j++)
+            column.push_back(a);
+        data.push_back(column);
+    } 
     size[0] = m;
     size[1] = n;
 }
 
-std::array<int, 2> Matrix::getSize() {
+Matrix::Matrix (std::optional<Matrix> m)                   //to work with funcions with output "optioanl".
+{
+    if( m.has_value() )
+    {
+        data = m.value().data;
+        size[0] = m.value().size[0];
+        size[1] = m.value().size[1];
+    }
+    else 
+        std::cout<<"constructor: unable to creat! \n";
+}
+
+std::array<size_t, 2> Matrix::getSize()
+{
     return size;
 }
 
-Matrix::Matrix(size_t m, size_t n, bool ones) {
-    size[0] = m;
-    size[1] = n;
-    for (size_t i = 0; i < m; i++) {
-        std::vector<double> v;
-        for (size_t j = 0; j < n; ++j) {
-            v.push_back((ones) ? 1 : 0);
-        }
-        data.push_back(v);
+void Matrix::show()
+{
+    for (size_t i = 0; i < size[0]; i++)
+    {
+        for (size_t j = 0; j < size[1]; j++)
+            std::cout<<std::setiosflags(std::ios::left)<<std::setw(6)<<std::setprecision(3)<<data[i][j];
+        std::cout<<std::endl;
     }
 }
 
-double Matrix::det() {
-    double sum(0);
-    if (size[0] == size[1]) {
-        if (size[0] == 1) {
-            return data[0][0];
-        } else if (size[0] > 2) {
-            for (int k = 0; k < size[1]; ++k) {
-                std::vector<std::vector<double>> subMat;
-                for (int i = 1; i < size[0]; ++i) {
-                    std::vector<double> forMat;
-                    for (int j = 0; j < size[1]; ++j) {
-                        if (j != k) {
-                            forMat.push_back(data[i][j]);
-                        }
-                    }
-                    subMat.push_back(forMat);
-                }
-                sum = sum + (pow(-1, k) * data[0][k] * Matrix(subMat).det());
-            }
-            return sum;
-        } else if (size[0] == 2) {
-            return (data[0][0] * data[1][1]) - (data[0][1] * data[1][0]);
-        }
-    } else {
+Matrix Matrix::delCol(size_t j)
+{
+    for (size_t i = 0; i < size[0]; i++)
+        data[i].erase(data[i].begin()+j);            //sets the iterator where we want to remove a thing.
+    size[1]--;
+    return Matrix(data);
+}
+
+Matrix Matrix::myDelCol(size_t j)
+{
+    std::vector<std::vector<double>> Data;
+    Data = data;
+    for (size_t i = 0; i < size[0]; i++)
+        Data[i].erase(Data[i].begin()+j-1);               //sets the iterator to the (j-1)th element of vector.
+    //data = Data;                     
+    return Matrix(Data);
+}
+
+Matrix Matrix::col(size_t j)
+{
+    std::vector<std::vector<double>> Data;
+    for (size_t i = 0; i < size[0]; i++)
+    {
+        std::vector<double> temp;
+        temp.push_back(data[i][j]);
+        Data.push_back(temp);
+    }
+    return Matrix(Data);
+}
+
+Matrix Matrix::delRow(size_t j)        //to help calculating determinate.
+{
+    std::vector<std::vector<double>> Data;
+    Data = data;
+    Data.erase(Data.begin()+j-1);
+    //data = Data;
+    return Matrix(Data);
+}
+
+Matrix Matrix::T()
+{
+    std::vector<std::vector<double>> Data;
+    for (size_t i = 0; i < size[1]; i++)
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < size[0]; j++)
+            temp.push_back(data[j][i]);
+        Data.push_back(temp);
+    }
+    return Matrix(Data);
+}
+
+double Matrix::det()
+{
+    if( size[0] != size[1] )
+    {
+        std::cout<<"det: non square matrix! "<<std::endl;
         return 0;
     }
-    return 0;
+    if( size[0] == 1 )                   //for 1*1 matrix.
+        return this->data[0][0];
+
+    if(size[0] == 2)                     //for 2*2 matrix.
+        return ( data[0][0] * data[1][1] ) - ( data[0][1] * data[1][0] );
+
+    size_t i{1};                                //i shows ru kodum satr bast midim!
+    Matrix m = this->delRow(i);
+    double sumDet{};
+    double tempDet{};
+    for (size_t j = 0; j < size[1]; j++)
+    {
+        Matrix m2 = m.myDelCol(j+1);
+        tempDet = m2.det();
+        sumDet += data[i-1][j] * tempDet * pow(-1, i+j+1);
+    }
+    return sumDet;
 }
 
-Matrix Matrix::T() {
-    std::vector<std::vector<double>> newData;
-    for (int j = 0; j < size[1]; ++j) {
-        std::vector<double> innerVector;
-        innerVector.reserve(size[0]);
-        for (int i = 0; i < size[0]; ++i) {
-            innerVector.push_back(data[i][j]);
+Matrix Matrix::inv()
+{
+    std::vector<std::vector<double>> Data;
+    double Det = this->det();
+    for (size_t i{}; i < size[0]; i++)
+    {
+    std::vector<double> temp;
+    Matrix m = this->delRow(i+1);
+        for (size_t j{}; j < size[0]; j++)
+        {
+            Matrix m2 = m.myDelCol(j+1);
+            temp.push_back( (m2.det() * pow(-1,i+j)) / Det );
         }
-        newData.push_back(innerVector);
+        Data.push_back(temp);
     }
-    return Matrix(newData);
+    Matrix m3 = Matrix(Data);
+    return m3.T();
 }
 
-void Matrix::show() {
-    for (int i = 0; i < size[0]; ++i) {
-        for (int j = 0; j < size[1]; ++j) {
-            std::cout << data[i][j] << "\t";
+Matrix Matrix::operator * (Matrix b)
+{
+    if( this->size[1] != b.size[0] )
+    {
+        std::cout<<"*: cant operate! "<<std::endl;
+        return Matrix(this->size[0], this->size[1], false);
+    }
+
+    std::vector<std::vector<double>> Data;
+    for (size_t z{}; z < this->size[0]; z++)
+    {
+        std::vector<double> Temp;
+        for (size_t j{}; j < b.size[1]; j++)
+        {
+            double temp{};
+            for (size_t i{}; i < this->size[1]; i++)
+                temp += this->data[z][i] * b.data[i][j];
+            Temp.push_back(temp);
         }
-        std::cout << std::endl;
+        Data.push_back(Temp);
     }
+    return Matrix(Data);
 }
 
-Matrix Matrix::delCol(size_t col) {
-    std::vector<std::vector<double>> newData;
-    int column(col);
-    for (int i = 0; i < size[0]; i++) {
-        std::vector<double> innerVector;
-        innerVector.reserve(size[1]);
-        for (int j = 0; j < size[1]; j++) {
-            if (j != column) {
-                innerVector.push_back(data[i][j]);
-            }
+Matrix Matrix::operator + (Matrix a)
+{
+    if( size[0] != a.size[0] || size[1] != a.size[1] ) 
+    {
+        std::cout<<"+: cant oprate! \n";
+        return Matrix(this->size[0], this->size[1], false);
+    }
+    std::vector<std::vector<double>> Data;
+    for (size_t i = 0; i < size[0]; i++)
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < size[1]; j++)
+            temp.push_back( data[i][j] + a.data[i][j]);
+        Data.push_back(temp);
+    }
+    return Matrix(Data);
+}
+
+Matrix Matrix::operator - (Matrix a)
+{
+    if( size[0] != a.size[0] || size[1] != a.size[1] ) 
+    {
+        std::cout<<"-: cant oprate! \n";
+        return Matrix(this->size[0], this->size[1], false);
+    }
+    std::vector<std::vector<double>> Data;
+    for (size_t i = 0; i < size[0]; i++)
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < size[1]; j++)
+            temp.push_back( data[i][j] - a.data[i][j]);
+        Data.push_back(temp);
+    }
+    return Matrix(Data);
+}
+
+std::vector<double>& Matrix::operator [] (size_t i)
+{
+    return data[i];
+}
+
+void Matrix::save(const char* fileName)
+{
+    std::ofstream matrixFile(fileName);
+    for (size_t i{}; i < size[0]; i++)
+    {
+        for (size_t j{}; j < size[1]; j++)
+            matrixFile << data[i][j] <<" ,";
+            //matrixFile << std::endl;
+    }
+    matrixFile.close();
+}
+
+void Matrix::load(const char* fileName)
+{
+    std::ifstream matrixFile(fileName);
+    std::vector<std::vector<double>> Data;
+    char va;
+    double param;
+    for (size_t i{}; i < size[0]; i++)
+    {
+        std::vector<double> parameters;
+        for (size_t j{}; j < size[1]; j++)
+        {
+            matrixFile >> param >> va;
+            parameters.push_back(param);
         }
-        newData.push_back(innerVector);
+        Data.push_back(parameters);
     }
-    data.clear();
-    for (int i = 0; i < size[0]; i++) {
-        data.push_back(newData[i]);
-    }
-    size[1] = newData[0].size();
-    return Matrix(newData);
+    matrixFile.close();
+    data = Data;
 }
 
-Matrix Matrix::col(size_t col) {
-    std::vector<std::vector<double>> newData;
-    int column(col);
-    for (int i = 0; i < size[0]; i++) {
-        std::vector<double> innerVector;
-        innerVector.reserve(size[1]);
-        for (int j = 0; j < size[1]; j++) {
-            if (j == column) {
-                innerVector.push_back(data[i][j]);
-            }
-        }
-        newData.push_back(innerVector);
-    }
-    return Matrix(newData);
+std::vector<std::vector<double>> Matrix::getMatData()     //enables accessing matrix data (cuz private!)
+{
+    return data;
 }
-
-void Matrix::save(const char *c) {
-    std::ofstream myfile;
-    std::string address(c);
-    myfile.open(address + ".csv");
-    for (int i = 0; i < size[0]; ++i) {
-        std::string row;
-        for (int j = 0; j < size[1]; ++j) {
-            row = row + std::to_string(data[i][j]) + ((j == size[1] - 1) ? "\n" : " ,");
-        }
-        myfile << row;
-    }
-    myfile.close();
-}
-
-void Matrix::load(const char *c) {
-    std::fstream fin;
-    std::string line;
-    std::string word;
-    fin.open(c, std::ios::in);
-    std::vector<std::vector<double>> newData;
-    while (std::getline(fin, line)) {
-        std::vector<double> vector;
-        std::stringstream s(line);
-        while (std::getline(s, word, ',')) {
-            vector.push_back(atof(word.c_str()));
-        }
-        newData.push_back(vector);
-    }
-    data = newData;
-    size[0] = newData.size();
-    size[1] = newData[0].size();
-}
-
-Matrix Matrix::operator+(const Matrix &matrix) {
-    std::vector<std::vector<double>> newData;
-    if (size[0] == matrix.size[0] && size[1] == matrix.size[1]) {
-        for (int i = 0; i < size[0]; ++i) {
-            std::vector<double> vector;
-            vector.reserve(size[1]);
-            for (int j = 0; j < size[1]; ++j) {
-                vector.push_back(data[i][j] + matrix.data[i][j]);
-            }
-            newData.push_back(vector);
-        }
-        return Matrix(newData);
-    } else {
-        return Matrix(data);
-    }
-}
-
-Matrix Matrix::operator-(const Matrix &matrix) {
-    std::vector<std::vector<double>> newData;
-    if (size[0] == matrix.size[0] && size[1] == matrix.size[1]) {
-        for (int i = 0; i < size[0]; ++i) {
-            std::vector<double> vector;
-            vector.reserve(size[1]);
-            for (int j = 0; j < size[1]; ++j) {
-                vector.push_back(data[i][j] - matrix.data[i][j]);
-            }
-            newData.push_back(vector);
-        }
-        return Matrix(newData);
-    } else {
-        return Matrix(data);
-    }
-}
-
-Matrix Matrix::operator*(const Matrix &matrix) {
-    if (size[1] == matrix.size[0]) {
-        std::vector<std::vector<double>> newData;
-        for (int i = 0; i < size[0]; ++i) {
-            std::vector<double> vector;
-            for (int k = 0; k < matrix.size[1]; ++k) {
-                vector.reserve(size[1]);
-                double sum(0);
-                for (int j = 0; j < size[1]; ++j) {
-                    sum = sum + (data[i][j] * matrix.data[j][k]);
-                }
-                vector.push_back(sum);
-            }
-            newData.push_back(vector);
-        }
-        return Matrix(newData);
-    } else {
-        return Matrix(data);
-    }
-}
-
-Matrix Matrix::inv() {
-
-    double determinate = det();
-    if (determinate != 0) {
-        std::vector<std::vector<double >> finalData;
-        for (int i = 0; i < size[0]; ++i) {
-            std::vector<double> vectorFinal;
-            for (int j = 0; j < size[1]; ++j) {
-                std::vector<std::vector<double >> newData;
-                for (int k = 0; k < size[0]; ++k) {
-                    std::vector<double> vector;
-                    for (int l = 0; l < size[1]; ++l) {
-                        if (k != i && l != j) {
-                            vector.push_back(data[k][l]);
-                        }
-                    }
-                    if (!vector.empty()) {
-                        newData.push_back(vector);
-                    }
-                }
-                vectorFinal.push_back(pow(-1, i + j) * Matrix(newData).det() / determinate);
-            }
-            finalData.push_back(vectorFinal);
-        }
-        return Matrix(finalData).T();
-    } else {
-        return Matrix() ;
-    }
-}
-
-std::vector<double >& Matrix::operator[](const int &row) {
-    return data[row];
-}
-
-
 
 
 

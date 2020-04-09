@@ -1,100 +1,175 @@
-//
-// Created by Hossein on 3/18/2020.
-//
-
-#include <optional>
-#include <iostream>
 #include "aphw2.h"
 
-std::optional<double> det(Matrix &matrix) {
-    if (matrix.getSize()[0] == matrix.getSize()[1]){
-        return matrix.det();
-    }else{
+std::optional<double> det(Matrix& m)
+{
+    std::array<size_t, 2> size = m.getSize();
+    if( size[1] == size[0] )
+        return m.det();
+    std::cout<<"det: non square! \n";
+    return std::nullopt;
+}
+
+std::optional<Matrix> inv(Matrix&& m)
+{
+    std::array<size_t, 2> size = m.getSize();
+    if( size[1] == size[0] )
+        return m.inv();
+    std::cout<<"inv: unable! \n";
+    return std::nullopt;
+}
+
+std::optional<Matrix> transpose(Matrix& m)
+{
+    return m.T();
+}
+
+size_t findMin(std::vector<size_t> v)
+{
+    size_t min{v[0]};
+    for (size_t i = 0; i < v.size(); i++)
+        if( v[i] < min )
+            min = v[i];
+    return min;
+}
+
+size_t opt(size_t i, size_t k, std::vector<size_t> size, std::vector<std::vector<size_t>>& save)
+{
+    if( i == k )
         return 0;
+    if( save[i][k] != 0 )                       //checks if calculated before. (dynamic programming)
+        return save[i][k];
+    std::vector<size_t> temp;
+    for (size_t z = i; z < k; z++)              //calculates possibilaties for multipliction Ith o Kth matrix.
+        temp.push_back( opt(i, z, size, save) + opt(z+1, k, size, save) + size[i-1]*size[z]*size[k] );
+
+    size_t min{findMin(temp)};                  //finds the min value of all the possibilaies at this turn.
+    save[i][k] = min;                           //saves the calculated value. (dynamic programming)
+    return min;
+}
+
+size_t findMinNoOfMultiplications(std::vector<Matrix>& v)
+{
+    std::vector<size_t> size;                      //creats a vector including size of matrixes.
+    size_t matNo = v.size();
+    for (size_t i = 0; i < matNo; i++)
+    {
+        std::array<size_t,2> Size{v[i].getSize()};
+        size.push_back(Size[0]);
     }
+    std::array<size_t,2> Size{v[matNo-1].getSize()};
+    size.push_back(Size[1]);
+
+    std::vector<std::vector<size_t>> save;         //creating a 2D vector to save operations result in opt function. (dynamic programming)
+    for (size_t i = 0; i < matNo+1; i++)
+        save.push_back(std::vector<size_t>(matNo+1, 0));
+
+    size_t ans{opt(1, matNo, size, save)};
+    return ans;
 }
 
-std::optional<Matrix> inv(Matrix & matrix) {
-    if (matrix.getSize()[0] == matrix.getSize()[1]){
-        return matrix.inv();
-    }else{
-        std::cout << "Matrix not square" << std::endl;
-        return std::nullopt;
+std::vector<std::vector<double>> getData(const char* filename, bool add_bias)
+{
+    std::vector<std::vector<double>> Data;
+    std::ifstream dataFile1(filename);
+    char* line{new char[200]};
+    int j{};
+    size_t columnCounter{};
+    double param;
+    char va;
+
+    dataFile1.getline(line, 200);           //to count how many culomns are there in the file.
+    while( j < 200 )
+    {
+        if( line[j] == ',' ) 
+            columnCounter++;
+        j++;
     }
-}
+    delete[] line;
+    dataFile1.close();
 
-std::optional<Matrix> transpose(Matrix & matrix) {
-    return matrix.T();
-}
-
-std::vector<std::vector<double>> getData(const char *filename, bool add_bias) {
-    Matrix matrix;
-    matrix.load(filename);
-    if (add_bias){
-        std::vector<std::vector<double >> data;
-        for (int i = 0; i < matrix.getSize()[0]; ++i) {
-            std::vector<double > vector;
-            vector.push_back(1);
-            for (int j = 0; j < matrix.getSize()[1]; ++j) {
-                vector.push_back(matrix[i][j]);
-            }
-            data.push_back(vector);
+    std::ifstream dataFile(filename);       //open the file again to refuse missing the first line.
+    while( !dataFile.eof() )
+    {
+        std::vector<double> temp;
+        if( add_bias ) 
+            temp.push_back(1);
+        for (size_t i{}; i < columnCounter+1 ; i++)
+        {
+            if( i == columnCounter ) 
+                dataFile >> param;
+            else
+                dataFile >> param >> va;
+            temp.push_back(param);
         }
-        return data;
-    }else{
-        std::vector<std::vector<double >> data;
-        for (int i = 0; i < matrix.getSize()[0]; ++i) {
-            std::vector<double > vector;
-            for (int j = 0; j < matrix.getSize()[1]; ++j) {
-                vector.push_back(matrix[i][j]);
-            }
-            data.push_back(vector);
-        }
-        return data;
+        Data.push_back(temp);
     }
+    dataFile.close();
+    Data.pop_back();
+    return Data;
 }
 
-Matrix findWeights(const char * fileName) {
-    Matrix matrix(getData(fileName, true));
+Matrix findWeights(const char* fileName)
+{
+    std::vector<std::vector<double>> data{getData(fileName)};
+    size_t rowN = data.size();
+    size_t columnN = data[0].size();
+    std::vector<std::vector<double>> yData;
+    for (size_t i = 0; i < rowN; i++)                  //creating y matrix.
+    {
+        std::vector<double> temp;
+        temp.push_back(data[i][columnN-1]);
+        yData.push_back(temp);
+    }
+    Matrix y(yData);
 
+    std::vector<std::vector<double>> xData;
+    for (size_t i = 0; i < rowN; i++)                  //creating x matrix.
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < columnN-1; j++)
+            temp.push_back(data[i][j]);
+        xData.push_back(temp);
+    }
+    Matrix x(xData);
 
-    Matrix y = matrix.col(matrix.getSize()[1] - 1);
-    Matrix x = matrix.delCol(matrix.getSize()[1] - 1);
-//    y.show();
+    Matrix t{x.T() * x};
+    Matrix w{t.inv() * x.T() * y};
 
-    Matrix w = ((x.T() * x).inv()) * x.T() * y;
-//    w.show();
     return w;
 }
 
-Matrix predict(const char * fileName, const Matrix& w, bool disp) {
-    Matrix matrix = getData(fileName, true);
-    Matrix y = matrix.col(matrix.getSize()[1] - 1);
-    Matrix x = matrix.delCol(matrix.getSize()[1] - 1);
-    Matrix estimate = (x) * w;
-//    x.show();
-    std::cout << "estimate : " << estimate.getSize()[0] << std::endl;
-    std::cout << "estimate : " << estimate.getSize()[1] << std::endl;
-//    std::cout << "estimate : " << estimate[0][1] << std::endl;
-//    std::cout << "estimate : " << estimate[0][2] << std::endl;
-//    std::cout << "estimate : " << estimate[0][3] << std::endl;
-//    estimate.show();
+Matrix predict(const char* name, Matrix& w, bool disp)
+{
+    std::vector<std::vector<double>> Data, mData;
+    mData = w.getMatData();                       //cuz matrix data is pritave.
+    Data = getData(name);
+    size_t columnN = Data[0].size();
+    size_t rowN = Data.size();
+    double grade{};
+    std::vector<std::vector<double>> ans;
 
-    if(disp){
-        std::cout << "No" << "\t" << "Real Grade" << "\t" << "Estimated Grade" << std::endl;
-        for (int i = 0; i < 40; ++i) {
-            std::cout << "*";
-        }
-        std::cout << std::endl;
+    for (size_t i = 0; i < rowN; i++)
+    {
+        std::vector<double> temp;
+        for (size_t j = 0; j < columnN-1; j++)
+            grade += Data[i][j] * mData[j][0];
+        temp.push_back(grade);
+        ans.push_back(temp);
+        grade = 0;
+    }
+    Matrix Ans(ans);
 
-        for (int j = 0; j < y.getSize()[0]; ++j) {
-            std::cout << j << "\t" << y[j][0] << "\t\t" << estimate[j][0] << std::endl;
+    if( disp )
+    {
+        std::cout<<std::setiosflags(std::ios::left)<<std::setw(12)<<"Estimated";
+        std::cout<<std::setiosflags(std::ios::left)<<std::setw(12)<<"Real Grade"<<std::endl;
+        for(size_t i{}; i < rowN; i++)
+        {
+            std::cout<<std::setiosflags(std::ios::left)<<std::setw(12)<<std::setprecision(3)<<ans[i][0];
+            std::cout<<std::setiosflags(std::ios::left)<<std::setw(12)<<std::setprecision(3)<<Data[i][columnN-1];
+            std::cout<<std::endl;
         }
     }
-
-    return x * w ;
+    return Ans;
 }
 
-size_t findMinNoOfMultiplications(std::vector<Matrix>& v){
-    return 12;
-}
