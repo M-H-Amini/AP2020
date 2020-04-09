@@ -1,5 +1,6 @@
-language: python
-python:
-  - "3.6" 
+language: cpp
+services:
+  - docker
 script:
-  - python W.py
+  - docker build -t aphw2 .
+  - docker run --rm -it aphw2
